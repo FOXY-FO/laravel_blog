@@ -5,10 +5,18 @@ namespace App;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
     use Notifiable;
+
+    const IS_ACTIVE = 0;
+    const IS_BANNED = 1;
+    const IS_NORMAL = 0;
+    const IS_ADMIN = 1;
 
     /**
      * The attributes that are mass assignable.
@@ -45,5 +53,85 @@ class User extends Authenticatable
     public function comments()
     {
         return $this->hasMany(Comment::class);
+    }
+
+    public static function add($fields)
+    {
+        $user = new static;
+        $user->fill($fields);
+        $user->password = Hash::make($fields['password']);
+        $user->save();
+
+        return $user;
+    }
+
+    public function edit($fields)
+    {
+        $this->fill($fields);
+        $this->password = Hash::make($fields['password']);
+        $this->save();
+    }
+
+    public function remove()
+    {
+        Storage::delete('uploads/' . $this->image);
+        $this->delete();
+    }
+
+    public function uploadAvatar($image)
+    {
+        if ($image == null) { return; }
+
+        Storage::delete('uploads/' . $this->image);
+
+        $filename = Str::random(10) . '.' . $image->extension();
+        $image->saveAs('uploads', $filename);
+        $this->image = $filename;
+        $this->save();
+    }
+
+    public function getAvatar()
+    {
+        if ($this->image == null) {
+            return '/uploads/no-user-image.png';
+        }
+
+        return '/uploads/' . $this->image;
+    }
+
+    public function makeAdmin()
+    {
+        $this->is_admin = User::IS_ADMIN;
+        $this->save();
+    }
+
+    public function makeNormal()
+    {
+        $this->is_admin = User::IS_NORMAL;
+        $this->save();
+    }
+
+    public function toggleAdmin($value)
+    {
+        if ($value == null) { return $this->makeNormal(); }
+        return $this->makeAdmin();
+    }
+
+    public function ban()
+    {
+        $this->status = User::IS_BANNED;
+        $this->save();
+    }
+
+    public function unban()
+    {
+        $this->status = User::IS_ACTIVE;
+        $this->save();
+    }
+
+    public function toggleBan($value)
+    {
+        if ($value == null) { return $this->unban(); }
+        return $this->ban();
     }
 }
